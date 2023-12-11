@@ -32,7 +32,7 @@ out/
 
 bin/
 bin-int/
-*.sln
-*.vcxproj
-*.vcxproj.filters
-*.vcxproj**
+**/*.sln
+**/*.vcxproj
+**/*.vcxproj.filters
+**/*.vcxproj**
