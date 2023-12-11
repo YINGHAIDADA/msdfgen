@@ -2,7 +2,7 @@ project "freetype"
 	location "freetype"
 	kind "StaticLib"
 	language "C"
-  staticruntime "off"
+  	staticruntime "off"
 
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
 	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
@@ -89,7 +89,7 @@ project "msdfgen"
 	kind "StaticLib"
 	language "C++"
 	cppdialect "C++17"
-    staticruntime "off"
+	staticruntime "off"
 
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
 	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
