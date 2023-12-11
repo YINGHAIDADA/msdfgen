@@ -25,22 +25,16 @@ and **[extensions](ext)**. The core module has no dependencies and only uses bar
 key data structures and algorithms, which can be accessed through the [msdfgen.h](msdfgen.h) header.
 Extensions contain utilities for loading fonts and SVG files, as well as saving PNG images.
 Those are exposed by the [msdfgen-ext.h](msdfgen-ext.h) header. This module uses
-[FreeType](https://freetype.org/),
-[TinyXML2](https://www.grinninglizard.com/tinyxml2/),
-[libpng](http://www.libpng.org/pub/png/libpng.html),
+[FreeType](http://www.freetype.org/),
+[TinyXML2](http://www.grinninglizard.com/tinyxml2/),
+[LodePNG](http://lodev.org/lodepng/),
 and (optionally) [Skia](https://skia.org/).
 
 Additionally, there is the [main.cpp](main.cpp), which wraps the functionality into
 a comprehensive standalone console program. To start using the program immediately,
 there is a Windows binary available for download in the ["Releases" section](https://github.com/Chlumsky/msdfgen/releases).
-To use the project as a library, you may install it via the [vcpkg](https://vcpkg.io) package manager as
-```
-vcpkg install msdfgen
-```
-Or, to build the project from source, you may use the included [CMake script](CMakeLists.txt).
-In its default configuration, it requires [vcpkg](https://vcpkg.io) as the provider for third-party library dependencies.
-If you set the environment variable `VCPKG_ROOT` to the vcpkg directory,
-the CMake configuration will take care of fetching all required packages from vcpkg.
+To build the project, you may use the included [Visual Studio solution](Msdfgen.sln)
+or [CMake script](CMakeLists.txt).
 
 ## Console commands
 
@@ -203,7 +197,7 @@ The text shape description has the following syntax.
  - The last point of each contour must be equal to the first, or the symbol `#` can be used, which represents the first point.
  - There can be an edge segment specification between any two points, also separated by semicolons.
    This can include the edge's color (`c`, `m`, `y` or `w`) and/or one or two Bézier curve control points inside parentheses.
-
+   
 For example,
 ```
 { -1, -1; m; -1, +1; y; +1, +1; m; +1, -1; y; # }

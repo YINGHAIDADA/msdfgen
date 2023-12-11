@@ -4,8 +4,6 @@
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
-#include <cfloat>
-#include <vector>
 #include <queue>
 #include "arithmetics.hpp"
 
@@ -245,8 +243,8 @@ static double edgeToEdgeDistance(const EdgeSegment &a, const EdgeSegment &b, int
     return minDistance;
 }
 
-static double splineToSplineDistance(EdgeSegment *const *edgeSegments, int aStart, int aEnd, int bStart, int bEnd, int precision) {
-    double minDistance = DBL_MAX;
+static double splineToSplineDistance(EdgeSegment * const *edgeSegments, int aStart, int aEnd, int bStart, int bEnd, int precision) {
+    double minDistance = fabs(SignedDistance::INFINITE.distance);
     for (int ai = aStart; ai < aEnd; ++ai)
         for (int bi = bStart; bi < bEnd && minDistance; ++bi) {
             double d = edgeToEdgeDistance(*edgeSegments[ai], *edgeSegments[bi], precision);
@@ -255,7 +253,7 @@ static double splineToSplineDistance(EdgeSegment *const *edgeSegments, int aStar
     return minDistance;
 }
 
-static void colorSecondDegreeGraph(int *coloring, const int *const *edgeMatrix, int vertexCount, unsigned long long seed) {
+static void colorSecondDegreeGraph(int *coloring, const int * const *edgeMatrix, int vertexCount, unsigned long long seed) {
     for (int i = 0; i < vertexCount; ++i) {
         int possibleColors = 7;
         for (int j = 0; j < i; ++j) {
@@ -302,7 +300,7 @@ static int vertexPossibleColors(const int *coloring, const int *edgeVector, int 
     return 7&~usedColors;
 }
 
-static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, const int *const *edgeMatrix, int vertex, int vertexCount) {
+static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, const int * const *edgeMatrix, int vertex, int vertexCount) {
     for (int i = vertex+1; i < vertexCount; ++i) {
         if (edgeMatrix[vertex][i] && coloring[i] == coloring[vertex]) {
             coloring[i] = -1;
@@ -317,7 +315,7 @@ static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, cons
     }
 }
 
-static bool tryAddEdge(int *coloring, int *const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
+static bool tryAddEdge(int *coloring, int * const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
     static const int FIRST_POSSIBLE_COLOR[8] = { -1, 0, 1, 0, 2, 2, 1, 0 };
     edgeMatrix[vertexA][vertexB] = 1;
     edgeMatrix[vertexB][vertexA] = 1;
@@ -359,7 +357,7 @@ static bool tryAddEdge(int *coloring, int *const *edgeMatrix, int vertexCount, i
 }
 
 static int cmpDoublePtr(const void *a, const void *b) {
-    return sign(**reinterpret_cast<const double *const *>(a)-**reinterpret_cast<const double *const *>(b));
+    return sign(**reinterpret_cast<const double * const *>(a)-**reinterpret_cast<const double * const *>(b));
 }
 
 void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long long seed) {
@@ -475,7 +473,7 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
         edgeMatrix[i] = &edgeMatrixStorage[i*splineCount];
     int nextEdge = 0;
     for (; nextEdge < graphEdgeCount && !*graphEdgeDistances[nextEdge]; ++nextEdge) {
-        int elem = (int) (graphEdgeDistances[nextEdge]-distanceMatrixBase);
+        int elem = graphEdgeDistances[nextEdge]-distanceMatrixBase;
         int row = elem/splineCount;
         int col = elem%splineCount;
         edgeMatrix[row][col] = 1;
@@ -485,7 +483,7 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
     std::vector<int> coloring(2*splineCount);
     colorSecondDegreeGraph(&coloring[0], &edgeMatrix[0], splineCount, seed);
     for (; nextEdge < graphEdgeCount; ++nextEdge) {
-        int elem = (int) (graphEdgeDistances[nextEdge]-distanceMatrixBase);
+        int elem = graphEdgeDistances[nextEdge]-distanceMatrixBase;
         tryAddEdge(&coloring[0], &edgeMatrix[0], splineCount, elem/splineCount, elem%splineCount, &coloring[splineCount]);
     }
 

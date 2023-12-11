@@ -1,19 +1,18 @@
 
 #include "contour-combiners.h"
 
-#include <cfloat>
 #include "arithmetics.hpp"
 
 namespace msdfgen {
 
 static void initDistance(double &distance) {
-    distance = -DBL_MAX;
+    distance = SignedDistance::INFINITE.distance;
 }
 
 static void initDistance(MultiDistance &distance) {
-    distance.r = -DBL_MAX;
-    distance.g = -DBL_MAX;
-    distance.b = -DBL_MAX;
+    distance.r = SignedDistance::INFINITE.distance;
+    distance.g = SignedDistance::INFINITE.distance;
+    distance.b = SignedDistance::INFINITE.distance;
 }
 
 static double resolveDistance(double distance) {
@@ -33,7 +32,7 @@ void SimpleContourCombiner<EdgeSelector>::reset(const Point2 &p) {
 }
 
 template <class EdgeSelector>
-EdgeSelector &SimpleContourCombiner<EdgeSelector>::edgeSelector(int) {
+EdgeSelector & SimpleContourCombiner<EdgeSelector>::edgeSelector(int) {
     return shapeEdgeSelector;
 }
 
@@ -63,7 +62,7 @@ void OverlappingContourCombiner<EdgeSelector>::reset(const Point2 &p) {
 }
 
 template <class EdgeSelector>
-EdgeSelector &OverlappingContourCombiner<EdgeSelector>::edgeSelector(int i) {
+EdgeSelector & OverlappingContourCombiner<EdgeSelector>::edgeSelector(int i) {
     return edgeSelectors[i];
 }
 

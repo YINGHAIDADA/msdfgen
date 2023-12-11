@@ -1,8 +1,8 @@
 
 /*
- * MULTI-CHANNEL SIGNED DISTANCE FIELD GENERATOR - standalone console program
- * --------------------------------------------------------------------------
- * A utility by Viktor Chlumsky, (c) 2014 - 2023
+ * MULTI-CHANNEL SIGNED DISTANCE FIELD GENERATOR v1.9 (2021-05-28) - standalone console program
+ * --------------------------------------------------------------------------------------------
+ * A utility by Viktor Chlumsky, (c) 2014 - 2021
  *
  */
 
@@ -13,25 +13,14 @@
 #include <cstdio>
 #include <cmath>
 #include <cstring>
-#include <string>
 
 #include "msdfgen.h"
-#ifdef MSDFGEN_EXTENSIONS
 #include "msdfgen-ext.h"
-#endif
 
 #include "core/ShapeDistanceFinder.h"
 
 #define SDF_ERROR_ESTIMATE_PRECISION 19
 #define DEFAULT_ANGLE_THRESHOLD 3.
-
-#if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
-#define DEFAULT_IMAGE_EXTENSION "png"
-#define SAVE_DEFAULT_IMAGE_FORMAT savePng
-#else
-#define DEFAULT_IMAGE_EXTENSION "tif"
-#define SAVE_DEFAULT_IMAGE_FORMAT saveTiff
-#endif
 
 using namespace msdfgen;
 
@@ -76,6 +65,19 @@ static bool parseUnsignedLL(unsigned long long &value, const char *arg) {
 static bool parseDouble(double &value, const char *arg) {
     char c;
     return sscanf(arg, "%lf%c", &value, &c) == 1;
+}
+
+static bool parseUnicode(unicode_t &unicode, const char *arg) {
+    unsigned uuc;
+    if (parseUnsignedDecOrHex(uuc, arg)) {
+        unicode = uuc;
+        return true;
+    }
+    if (arg[0] == '\'' && arg[1] && arg[2] == '\'' && !arg[3]) {
+        unicode = (unicode_t) (unsigned char) arg[1];
+        return true;
+    }
+    return false;
 }
 
 static bool parseAngle(double &value, const char *arg) {
@@ -132,46 +134,6 @@ static void parseColoring(Shape &shape, const char *edgeAssignment) {
         }
     }
 }
-
-#ifdef MSDFGEN_EXTENSIONS
-static bool parseUnicode(unicode_t &unicode, const char *arg) {
-    unsigned uuc;
-    if (parseUnsignedDecOrHex(uuc, arg)) {
-        unicode = uuc;
-        return true;
-    }
-    if (arg[0] == '\'' && arg[1] && arg[2] == '\'' && !arg[3]) {
-        unicode = (unicode_t) (unsigned char) arg[1];
-        return true;
-    }
-    return false;
-}
-
-#ifndef MSDFGEN_DISABLE_VARIABLE_FONTS
-static FontHandle *loadVarFont(FreetypeHandle *library, const char *filename) {
-    std::string buffer;
-    while (*filename && *filename != '?')
-        buffer.push_back(*filename++);
-    FontHandle *font = loadFont(library, buffer.c_str());
-    if (font && *filename++ == '?') {
-        do {
-            buffer.clear();
-            while (*filename && *filename != '=')
-                buffer.push_back(*filename++);
-            if (*filename == '=') {
-                double value = 0;
-                int skip = 0;
-                if (sscanf(++filename, "%lf%n", &value, &skip) == 1) {
-                    setFontVariationAxis(library, font, buffer.c_str(), value);
-                    filename += skip;
-                }
-            }
-        } while (*filename++ == '&');
-    }
-    return font;
-}
-#endif
-#endif
 
 template <int N>
 static void invertColor(const BitmapRef<float, N> &bitmap) {
@@ -240,15 +202,10 @@ static bool cmpExtension(const char *path, const char *ext) {
 }
 
 template <int N>
-static const char *writeOutput(const BitmapConstRef<float, N> &bitmap, const char *filename, Format &format) {
+static const char * writeOutput(const BitmapConstRef<float, N> &bitmap, const char *filename, Format &format) {
     if (filename) {
         if (format == AUTO) {
-        #if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
             if (cmpExtension(filename, ".png")) format = PNG;
-        #else
-            if (cmpExtension(filename, ".png"))
-                return "PNG format is not available in core-only version.";
-        #endif
             else if (cmpExtension(filename, ".bmp")) format = BMP;
             else if (cmpExtension(filename, ".tif") || cmpExtension(filename, ".tiff")) format = TIFF;
             else if (cmpExtension(filename, ".txt")) format = TEXT;
@@ -257,9 +214,7 @@ static const char *writeOutput(const BitmapConstRef<float, N> &bitmap, const cha
                 return "Could not deduce format from output file name.";
         }
         switch (format) {
-        #if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
             case PNG: return savePng(bitmap, filename) ? NULL : "Failed to write output PNG image.";
-        #endif
             case BMP: return saveBmp(bitmap, filename) ? NULL : "Failed to write output BMP image.";
             case TIFF: return saveTiff(bitmap, filename) ? NULL : "Failed to write output TIFF image.";
             case TEXT: case TEXT_FLOAT: {
@@ -297,46 +252,24 @@ static const char *writeOutput(const BitmapConstRef<float, N> &bitmap, const cha
     return NULL;
 }
 
-#define STRINGIZE_(x) #x
-#define STRINGIZE(x) STRINGIZE_(x)
-#define MSDFGEN_VERSION_STRING STRINGIZE(MSDFGEN_VERSION)
-#ifdef MSDFGEN_VERSION_UNDERLINE
-    #define VERSION_UNDERLINE STRINGIZE(MSDFGEN_VERSION_UNDERLINE)
-#else
-    #define VERSION_UNDERLINE "--------"
-#endif
-
-#if defined(MSDFGEN_EXTENSIONS) && (defined(MSDFGEN_DISABLE_SVG) || defined(MSDFGEN_DISABLE_PNG) || defined(MSDFGEN_DISABLE_VARIABLE_FONTS))
-    #define TITLE_SUFFIX     " - custom config"
-    #define SUFFIX_UNDERLINE "----------------"
-#elif !defined(MSDFGEN_EXTENSIONS) && defined(MSDFGEN_USE_OPENMP)
-    #define TITLE_SUFFIX     " - core with OpenMP"
-    #define SUFFIX_UNDERLINE "-------------------"
-#elif !defined(MSDFGEN_EXTENSIONS)
-    #define TITLE_SUFFIX     " - core only"
-    #define SUFFIX_UNDERLINE "------------"
-#elif defined(MSDFGEN_USE_SKIA) && defined(MSDFGEN_USE_OPENMP)
-    #define TITLE_SUFFIX     " with Skia & OpenMP"
-    #define SUFFIX_UNDERLINE "-------------------"
+#if defined(MSDFGEN_USE_SKIA) && defined(MSDFGEN_USE_OPENMP)
+    #define TITLE_SUFFIX    " with Skia & OpenMP"
+    #define EXTRA_UNDERLINE "-------------------"
 #elif defined(MSDFGEN_USE_SKIA)
-    #define TITLE_SUFFIX     " with Skia"
-    #define SUFFIX_UNDERLINE "----------"
+    #define TITLE_SUFFIX    " with Skia"
+    #define EXTRA_UNDERLINE "----------"
 #elif defined(MSDFGEN_USE_OPENMP)
-    #define TITLE_SUFFIX     " with OpenMP"
-    #define SUFFIX_UNDERLINE "------------"
+    #define TITLE_SUFFIX    " with OpenMP"
+    #define EXTRA_UNDERLINE "------------"
 #else
     #define TITLE_SUFFIX
-    #define SUFFIX_UNDERLINE
+    #define EXTRA_UNDERLINE
 #endif
 
-static const char *const versionText =
-    "MSDFgen v" MSDFGEN_VERSION_STRING TITLE_SUFFIX "\n"
-    "(c) 2016 - " STRINGIZE(MSDFGEN_COPYRIGHT_YEAR) " Viktor Chlumsky";
-
-static const char *const helpText =
+static const char *helpText =
     "\n"
-    "Multi-channel signed distance field generator by Viktor Chlumsky v" MSDFGEN_VERSION_STRING TITLE_SUFFIX "\n"
-    "------------------------------------------------------------------" VERSION_UNDERLINE SUFFIX_UNDERLINE "\n"
+    "Multi-channel signed distance field generator by Viktor Chlumsky v" MSDFGEN_VERSION TITLE_SUFFIX "\n"
+    "---------------------------------------------------------------------" EXTRA_UNDERLINE "\n"
     "  Usage: msdfgen"
     #ifdef _WIN32
         ".exe"
@@ -353,23 +286,15 @@ static const char *const helpText =
     "INPUT SPECIFICATION\n"
     "  -defineshape <definition>\n"
         "\tDefines input shape using the ad-hoc text definition.\n"
-#ifdef MSDFGEN_EXTENSIONS
     "  -font <filename.ttf> <character code>\n"
         "\tLoads a single glyph from the specified font file.\n"
         "\tFormat of character code is '?', 63, 0x3F (Unicode value), or g34 (glyph index).\n"
-#endif
     "  -shapedesc <filename.txt>\n"
         "\tLoads text shape description from a file.\n"
     "  -stdin\n"
         "\tReads text shape description from the standard input.\n"
-#if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_SVG)
     "  -svg <filename.svg>\n"
         "\tLoads the last vector path found in the specified SVG file.\n"
-#endif
-#if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_VARIABLE_FONTS)
-    "  -varfont <filename and variables> <character code>\n"
-        "\tLoads a single glyph from a variable font. Specify variable values as x.ttf?var1=0.5&var2=1\n"
-#endif
     "\n"
     // Keep alphabetical order!
     "OPTIONS\n"
@@ -397,11 +322,7 @@ static const char *const helpText =
         "\tSaves the shape description into a text file that can be edited and loaded using -shapedesc.\n"
     "  -fillrule <nonzero / evenodd / positive / negative>\n"
         "\tSets the fill rule for the scanline pass. Default is nonzero.\n"
-#if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
     "  -format <png / bmp / tiff / text / textfloat / bin / binfloat / binfloatbe>\n"
-#else
-    "  -format <bmp / tiff / text / textfloat / bin / binfloat / binfloatbe>\n"
-#endif
         "\tSpecifies the output format of the distance field. Otherwise it is chosen based on output file extension.\n"
     "  -guessorder\n"
         "\tAttempts to detect if shape contours have the wrong winding and generates the SDF with the right one.\n"
@@ -419,7 +340,7 @@ static const char *const helpText =
         "\tDisables the scanline pass, which corrects the distance field's signs according to the selected fill rule.\n"
 #endif
     "  -o <filename>\n"
-        "\tSets the output file name. The default value is \"output." DEFAULT_IMAGE_EXTENSION "\".\n"
+        "\tSets the output file name. The default value is \"output.png\".\n"
 #ifdef MSDFGEN_USE_SKIA
     "  -overlap\n"
         "\tSwitches to distance field generator with support for overlapping contours.\n"
@@ -444,20 +365,12 @@ static const char *const helpText =
         "\tSets the dimensions of the output image.\n"
     "  -stdout\n"
         "\tPrints the output instead of storing it in a file. Only text formats are supported.\n"
-    "  -testrender <filename." DEFAULT_IMAGE_EXTENSION "> <width> <height>\n"
-#if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
+    "  -testrender <filename.png> <width> <height>\n"
         "\tRenders an image preview using the generated distance field and saves it as a PNG file.\n"
-#else
-        "\tRenders an image preview using the generated distance field and saves it as a TIFF file.\n"
-#endif
-    "  -testrendermulti <filename." DEFAULT_IMAGE_EXTENSION "> <width> <height>\n"
+    "  -testrendermulti <filename.png> <width> <height>\n"
         "\tRenders an image preview without flattening the color channels.\n"
     "  -translate <x> <y>\n"
         "\tSets the translation of the shape in shape units.\n"
-    "  -version\n"
-        "\tPrints the version of the program.\n"
-    "  -windingpreprocess\n"
-        "\tAttempts to fix only the contour windings assuming no self-intersections and even-odd fill rule.\n"
     "  -yflip\n"
         "\tInverts the Y axis in the output distance field. The default order is bottom to top.\n"
     "\n";
@@ -485,15 +398,14 @@ static const char *errorCorrectionHelpText =
         "\tDisplays this help.\n"
     "\n";
 
-int main(int argc, const char *const *argv) {
-    #define ABORT(msg) do { fputs(msg "\n", stderr); return 1; } while (false)
+int main(int argc, const char * const *argv) {
+    #define ABORT(msg) { puts(msg); return 1; }
 
     // Parse command line arguments
     enum {
         NONE,
         SVG,
         FONT,
-        VAR_FONT,
         DESCRIPTION_ARG,
         DESCRIPTION_STDIN,
         DESCRIPTION_FILE
@@ -505,34 +417,28 @@ int main(int argc, const char *const *argv) {
         MULTI_AND_TRUE,
         METRICS
     } mode = MULTI;
-    enum {
-        NO_PREPROCESS,
-        WINDING_PREPROCESS,
-        FULL_PREPROCESS
-    } geometryPreproc = (
+    bool legacyMode = false;
+    bool geometryPreproc = (
         #ifdef MSDFGEN_USE_SKIA
-            FULL_PREPROCESS
+            true
         #else
-            NO_PREPROCESS
+            false
         #endif
     );
-    bool legacyMode = false;
     MSDFGeneratorConfig generatorConfig;
-    generatorConfig.overlapSupport = geometryPreproc == NO_PREPROCESS;
-    bool scanlinePass = geometryPreproc == NO_PREPROCESS;
+    generatorConfig.overlapSupport = !geometryPreproc;
+    bool scanlinePass = !geometryPreproc;
     FillRule fillRule = FILL_NONZERO;
     Format format = AUTO;
     const char *input = NULL;
-    const char *output = "output." DEFAULT_IMAGE_EXTENSION;
+    const char *output = "output.png";
     const char *shapeExport = NULL;
     const char *testRender = NULL;
     const char *testRenderMulti = NULL;
     bool outputSpecified = false;
-#ifdef MSDFGEN_EXTENSIONS
-    bool glyphIndexSpecified = false;
     GlyphIndex glyphIndex;
     unicode_t unicode = 0;
-#endif
+    int svgPathIndex = 0;
 
     int width = 64, height = 64;
     int testWidth = 0, testHeight = 0;
@@ -571,62 +477,36 @@ int main(int argc, const char *const *argv) {
         #define ARG_MODE(s, m) if (!strcmp(arg, s)) { mode = m; ++argPos; continue; }
         #define SET_FORMAT(fmt, ext) do { format = fmt; if (!outputSpecified) output = "output." ext; } while (false)
 
-        // Accept arguments prefixed with -- instead of -
-        if (arg[0] == '-' && arg[1] == '-')
-            ++arg;
-
         ARG_MODE("sdf", SINGLE)
         ARG_MODE("psdf", PSEUDO)
         ARG_MODE("msdf", MULTI)
         ARG_MODE("mtsdf", MULTI_AND_TRUE)
         ARG_MODE("metrics", METRICS)
 
-    #if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_SVG)
         ARG_CASE("-svg", 1) {
             inputType = SVG;
             input = argv[argPos+1];
             argPos += 2;
             continue;
         }
-    #endif
-    #ifdef MSDFGEN_EXTENSIONS
-        //ARG_CASE -font, -varfont
-        if (argPos+2 < argc && (
-            (!strcmp(arg, "-font") && (inputType = FONT, true))
-            #ifndef MSDFGEN_DISABLE_VARIABLE_FONTS
-                || (!strcmp(arg, "-varfont") && (inputType = VAR_FONT, true))
-            #endif
-        )) {
+        ARG_CASE("-font", 2) {
+            inputType = FONT;
             input = argv[argPos+1];
             const char *charArg = argv[argPos+2];
             unsigned gi;
             switch (charArg[0]) {
                 case 'G': case 'g':
-                    if (parseUnsignedDecOrHex(gi, charArg+1)) {
+                    if (parseUnsignedDecOrHex(gi, charArg+1))
                         glyphIndex = GlyphIndex(gi);
-                        glyphIndexSpecified = true;
-                    }
                     break;
                 case 'U': case 'u':
                     ++charArg;
-                    // fallthrough
                 default:
                     parseUnicode(unicode, charArg);
             }
             argPos += 3;
             continue;
         }
-    #else
-        ARG_CASE("-svg", 1) {
-            ABORT("SVG input is not available in core-only version.");
-        }
-        ARG_CASE("-font", 2) {
-            ABORT("Font input is not available in core-only version.");
-        }
-        ARG_CASE("-varfont", 2) {
-            ABORT("Variable font input is not available in core-only version.");
-        }
-    #endif
         ARG_CASE("-defineshape", 1) {
             inputType = DESCRIPTION_ARG;
             input = argv[argPos+1];
@@ -662,17 +542,12 @@ int main(int argc, const char *const *argv) {
             continue;
         }
         ARG_CASE("-nopreprocess", 0) {
-            geometryPreproc = NO_PREPROCESS;
-            argPos += 1;
-            continue;
-        }
-        ARG_CASE("-windingpreprocess", 0) {
-            geometryPreproc = WINDING_PREPROCESS;
+            geometryPreproc = false;
             argPos += 1;
             continue;
         }
         ARG_CASE("-preprocess", 0) {
-            geometryPreproc = FULL_PREPROCESS;
+            geometryPreproc = true;
             argPos += 1;
             continue;
         }
@@ -703,27 +578,22 @@ int main(int argc, const char *const *argv) {
             else if (!strcmp(argv[argPos+1], "positive")) fillRule = FILL_POSITIVE;
             else if (!strcmp(argv[argPos+1], "negative")) fillRule = FILL_NEGATIVE;
             else
-                fputs("Unknown fill rule specified.\n", stderr);
+                puts("Unknown fill rule specified.");
             argPos += 2;
             continue;
         }
         ARG_CASE("-format", 1) {
             if (!strcmp(argv[argPos+1], "auto")) format = AUTO;
-        #if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_PNG)
             else if (!strcmp(argv[argPos+1], "png")) SET_FORMAT(PNG, "png");
-        #else
-            else if (!strcmp(argv[argPos+1], "png"))
-                fputs("PNG format is not available in core-only version.\n", stderr);
-        #endif
             else if (!strcmp(argv[argPos+1], "bmp")) SET_FORMAT(BMP, "bmp");
-            else if (!strcmp(argv[argPos+1], "tiff") || !strcmp(argv[argPos+1], "tif")) SET_FORMAT(TIFF, "tif");
+            else if (!strcmp(argv[argPos+1], "tiff")) SET_FORMAT(TIFF, "tif");
             else if (!strcmp(argv[argPos+1], "text") || !strcmp(argv[argPos+1], "txt")) SET_FORMAT(TEXT, "txt");
             else if (!strcmp(argv[argPos+1], "textfloat") || !strcmp(argv[argPos+1], "txtfloat")) SET_FORMAT(TEXT_FLOAT, "txt");
             else if (!strcmp(argv[argPos+1], "bin") || !strcmp(argv[argPos+1], "binary")) SET_FORMAT(BINARY, "bin");
             else if (!strcmp(argv[argPos+1], "binfloat") || !strcmp(argv[argPos+1], "binfloatle")) SET_FORMAT(BINARY_FLOAT, "bin");
             else if (!strcmp(argv[argPos+1], "binfloatbe")) SET_FORMAT(BINARY_FLOAT_BE, "bin");
             else
-                fputs("Unknown format specified.\n", stderr);
+                puts("Unknown format specified.");
             argPos += 2;
             continue;
         }
@@ -821,7 +691,7 @@ int main(int argc, const char *const *argv) {
                 puts(errorCorrectionHelpText);
                 return 0;
             } else
-                fputs("Unknown error correction mode. Use -errorcorrection help for more information.\n", stderr);
+                puts("Unknown error correction mode. Use -errorcorrection help for more information.");
             explicitErrorCorrectionMode = true;
             argPos += 2;
             continue;
@@ -847,7 +717,7 @@ int main(int argc, const char *const *argv) {
             else if (!strcmp(argv[argPos+1], "inktrap")) edgeColoring = edgeColoringInkTrap;
             else if (!strcmp(argv[argPos+1], "distance")) edgeColoring = edgeColoringByDistance;
             else
-                fputs("Unknown coloring strategy specified.\n", stderr);
+                puts("Unknown coloring strategy specified.");
             argPos += 2;
             continue;
         }
@@ -880,7 +750,7 @@ int main(int argc, const char *const *argv) {
         ARG_CASE("-testrender", 3) {
             unsigned w, h;
             if (!parseUnsigned(w, argv[argPos+2]) || !parseUnsigned(h, argv[argPos+3]) || !w || !h)
-                ABORT("Invalid arguments for test render. Use -testrender <output." DEFAULT_IMAGE_EXTENSION "> <width> <height>.");
+                ABORT("Invalid arguments for test render. Use -testrender <output.png> <width> <height>.");
             testRender = argv[argPos+1];
             testWidth = w, testHeight = h;
             argPos += 4;
@@ -889,7 +759,7 @@ int main(int argc, const char *const *argv) {
         ARG_CASE("-testrendermulti", 3) {
             unsigned w, h;
             if (!parseUnsigned(w, argv[argPos+2]) || !parseUnsigned(h, argv[argPos+3]) || !w || !h)
-                ABORT("Invalid arguments for test render. Use -testrendermulti <output." DEFAULT_IMAGE_EXTENSION "> <width> <height>.");
+                ABORT("Invalid arguments for test render. Use -testrendermulti <output.png> <width> <height>.");
             testRenderMulti = argv[argPos+1];
             testWidthM = w, testHeightM = h;
             argPos += 4;
@@ -931,68 +801,37 @@ int main(int argc, const char *const *argv) {
             argPos += 2;
             continue;
         }
-        ARG_CASE("-version", 0) {
-            puts(versionText);
-            return 0;
-        }
         ARG_CASE("-help", 0) {
             puts(helpText);
             return 0;
         }
-        fprintf(stderr, "Unknown setting or insufficient parameters: %s\n", argv[argPos]);
+        printf("Unknown setting or insufficient parameters: %s\n", arg);
         suggestHelp = true;
         ++argPos;
     }
     if (suggestHelp)
-        fprintf(stderr, "Use -help for more information.\n");
+        printf("Use -help for more information.\n");
 
     // Load input
-    Shape::Bounds svgViewBox = { };
+    Vector2 svgDims;
     double glyphAdvance = 0;
-    if (!inputType || !input) {
-        #ifdef MSDFGEN_EXTENSIONS
-            #ifdef MSDFGEN_DISABLE_SVG
-                ABORT("No input specified! Use -font <file.ttf/otf> <character code> or see -help.");
-            #else
-                ABORT("No input specified! Use either -svg <file.svg> or -font <file.ttf/otf> <character code>, or see -help.");
-            #endif
-        #else
-            ABORT("No input specified! See -help.");
-        #endif
-    }
+    if (!inputType || !input)
+        ABORT("No input specified! Use either -svg <file.svg> or -font <file.ttf/otf> <character code>, or see -help.");
     if (mode == MULTI_AND_TRUE && (format == BMP || (format == AUTO && output && cmpExtension(output, ".bmp"))))
         ABORT("Incompatible image format. A BMP file cannot contain alpha channel, which is required in mtsdf mode.");
     Shape shape;
     switch (inputType) {
-    #if defined(MSDFGEN_EXTENSIONS) && !defined(MSDFGEN_DISABLE_SVG)
         case SVG: {
-            int svgImportFlags = loadSvgShape(shape, svgViewBox, input);
-            if (!(svgImportFlags&SVG_IMPORT_SUCCESS_FLAG))
+            if (!loadSvgShape(shape, input, svgPathIndex, &svgDims))
                 ABORT("Failed to load shape from SVG file.");
-            if (svgImportFlags&SVG_IMPORT_PARTIAL_FAILURE_FLAG)
-                fputs("Warning: Failed to load part of SVG file.\n", stderr);
-            if (svgImportFlags&SVG_IMPORT_INCOMPLETE_FLAG)
-                fputs("Warning: SVG file contains multiple paths or shapes but this version is only able to load one.\n", stderr);
-            else if (svgImportFlags&SVG_IMPORT_UNSUPPORTED_FEATURE_FLAG)
-                fputs("Warning: SVG file likely contains elements that are unsupported.\n", stderr);
-            if (svgImportFlags&SVG_IMPORT_TRANSFORMATION_IGNORED_FLAG)
-                fputs("Warning: SVG path transformation ignored.\n", stderr);
             break;
         }
-    #endif
-    #ifdef MSDFGEN_EXTENSIONS
-        case FONT: case VAR_FONT: {
-            if (!glyphIndexSpecified && !unicode)
+        case FONT: {
+            if (!glyphIndex && !unicode)
                 ABORT("No character specified! Use -font <file.ttf/otf> <character code>. Character code can be a Unicode index (65, 0x41), a character in apostrophes ('A'), or a glyph index prefixed by g (g36, g0x24).");
             FreetypeHandle *ft = initializeFreetype();
-            if (!ft)
-                return -1;
-            FontHandle *font = (
-                #ifndef MSDFGEN_DISABLE_VARIABLE_FONTS
-                    inputType == VAR_FONT ? loadVarFont(ft, input) :
-                #endif
-                loadFont(ft, input)
-            );
+            if (!ft) return -1;
+            FontHandle *font = loadFont(ft, input);
             if (!font) {
                 deinitializeFreetype(ft);
                 ABORT("Failed to load font file.");
@@ -1008,7 +847,6 @@ int main(int argc, const char *const *argv) {
             deinitializeFreetype(ft);
             break;
         }
-    #endif
         case DESCRIPTION_ARG: {
             if (!readShapeDescription(input, shape, &skipColoring))
                 ABORT("Parse error in shape description.");
@@ -1034,24 +872,13 @@ int main(int argc, const char *const *argv) {
     // Validate and normalize shape
     if (!shape.validate())
         ABORT("The geometry of the loaded shape is invalid.");
-    switch (geometryPreproc) {
-        case NO_PREPROCESS:
-            break;
-        case WINDING_PREPROCESS:
-            shape.orientContours();
-            break;
-        case FULL_PREPROCESS:
-            #ifdef MSDFGEN_USE_SKIA
-                if (!resolveShapeGeometry(shape))
-                    fputs("Shape geometry preprocessing failed, skipping.\n", stderr);
-                else if (skipColoring) {
-                    skipColoring = false;
-                    fputs("Note: Input shape coloring won't be preserved due to geometry preprocessing.\n", stderr);
-                }
-            #else
-                ABORT("Shape geometry preprocessing (-preprocess) is not available in this version because the Skia library is not present.");
-            #endif
-            break;
+    if (geometryPreproc) {
+        #ifdef MSDFGEN_USE_SKIA
+            if (!resolveShapeGeometry(shape))
+                puts("Shape geometry preprocessing failed, skipping.");
+        #else
+            ABORT("Shape geometry preprocessing (-preprocess) is not available in this version because the Skia library is not present.");
+        #endif
     }
     shape.normalize();
     if (yFlip)
@@ -1105,19 +932,19 @@ int main(int argc, const char *const *argv) {
             ABORT("Failed to write output file.");
         if (shape.inverseYAxis)
             fprintf(out, "inverseY = true\n");
-        if (svgViewBox.l < svgViewBox.r && svgViewBox.b < svgViewBox.t)
-            fprintf(out, "view box = %.17g, %.17g, %.17g, %.17g\n", svgViewBox.l, svgViewBox.b, svgViewBox.r, svgViewBox.t);
-        if (bounds.l < bounds.r && bounds.b < bounds.t)
-            fprintf(out, "bounds = %.17g, %.17g, %.17g, %.17g\n", bounds.l, bounds.b, bounds.r, bounds.t);
+        if (bounds.r >= bounds.l && bounds.t >= bounds.b)
+            fprintf(out, "bounds = %.12g, %.12g, %.12g, %.12g\n", bounds.l, bounds.b, bounds.r, bounds.t);
+        if (svgDims.x != 0 && svgDims.y != 0)
+            fprintf(out, "dimensions = %.12g, %.12g\n", svgDims.x, svgDims.y);
         if (glyphAdvance != 0)
-            fprintf(out, "advance = %.17g\n", glyphAdvance);
+            fprintf(out, "advance = %.12g\n", glyphAdvance);
         if (autoFrame) {
             if (!scaleSpecified)
-                fprintf(out, "scale = %.17g\n", avgScale);
-            fprintf(out, "translate = %.17g, %.17g\n", translate.x, translate.y);
+                fprintf(out, "scale = %.12g\n", avgScale);
+            fprintf(out, "translate = %.12g, %.12g\n", translate.x, translate.y);
         }
         if (rangeMode == RANGE_PX)
-            fprintf(out, "range = %.17g\n", range);
+            fprintf(out, "range = %.12g\n", range);
         if (mode == METRICS && outputSpecified)
             fclose(out);
     }
@@ -1137,7 +964,7 @@ int main(int argc, const char *const *argv) {
                 case ErrorCorrectionConfig::EDGE_PRIORITY: fallbackModeName = "auto-fast"; break;
                 case ErrorCorrectionConfig::EDGE_ONLY: fallbackModeName = "edge-fast"; break;
             }
-            fprintf(stderr, "Selected error correction mode not compatible with scanline pass, falling back to %s.\n", fallbackModeName);
+            printf("Selected error correction mode not compatible with scanline mode, falling back to %s.\n", fallbackModeName);
         }
         generatorConfig.errorCorrection.mode = ErrorCorrectionConfig::DISABLED;
         postErrorCorrectionConfig.errorCorrection.distanceCheckMode = ErrorCorrectionConfig::DO_NOT_CHECK_DISTANCE;
@@ -1253,16 +1080,15 @@ int main(int argc, const char *const *argv) {
             writeShapeDescription(file, shape);
             fclose(file);
         } else
-            fputs("Failed to write shape export file.\n", stderr);
+            puts("Failed to write shape export file.");
     }
     const char *error = NULL;
     switch (mode) {
         case SINGLE:
         case PSEUDO:
-            if ((error = writeOutput<1>(sdf, output, format))) {
-                fprintf(stderr, "%s\n", error);
-                return 1;
-            }
+            error = writeOutput<1>(sdf, output, format);
+            if (error)
+                ABORT(error);
             if (is8bitFormat(format) && (testRenderMulti || testRender || estimateError))
                 simulate8bit(sdf);
             if (estimateError) {
@@ -1272,21 +1098,20 @@ int main(int argc, const char *const *argv) {
             if (testRenderMulti) {
                 Bitmap<float, 3> render(testWidthM, testHeightM);
                 renderSDF(render, sdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRenderMulti))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRenderMulti))
+                    puts("Failed to write test render file.");
             }
             if (testRender) {
                 Bitmap<float, 1> render(testWidth, testHeight);
                 renderSDF(render, sdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRender))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRender))
+                    puts("Failed to write test render file.");
             }
             break;
         case MULTI:
-            if ((error = writeOutput<3>(msdf, output, format))) {
-                fprintf(stderr, "%s\n", error);
-                return 1;
-            }
+            error = writeOutput<3>(msdf, output, format);
+            if (error)
+                ABORT(error);
             if (is8bitFormat(format) && (testRenderMulti || testRender || estimateError))
                 simulate8bit(msdf);
             if (estimateError) {
@@ -1296,21 +1121,20 @@ int main(int argc, const char *const *argv) {
             if (testRenderMulti) {
                 Bitmap<float, 3> render(testWidthM, testHeightM);
                 renderSDF(render, msdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRenderMulti))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRenderMulti))
+                    puts("Failed to write test render file.");
             }
             if (testRender) {
                 Bitmap<float, 1> render(testWidth, testHeight);
                 renderSDF(render, msdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRender))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRender))
+                    ABORT("Failed to write test render file.");
             }
             break;
         case MULTI_AND_TRUE:
-            if ((error = writeOutput<4>(mtsdf, output, format))) {
-                fprintf(stderr, "%s\n", error);
-                return 1;
-            }
+            error = writeOutput<4>(mtsdf, output, format);
+            if (error)
+                ABORT(error);
             if (is8bitFormat(format) && (testRenderMulti || testRender || estimateError))
                 simulate8bit(mtsdf);
             if (estimateError) {
@@ -1320,14 +1144,14 @@ int main(int argc, const char *const *argv) {
             if (testRenderMulti) {
                 Bitmap<float, 4> render(testWidthM, testHeightM);
                 renderSDF(render, mtsdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRenderMulti))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRenderMulti))
+                    puts("Failed to write test render file.");
             }
             if (testRender) {
                 Bitmap<float, 1> render(testWidth, testHeight);
                 renderSDF(render, mtsdf, avgScale*range, .5f+outputDistanceShift);
-                if (!SAVE_DEFAULT_IMAGE_FORMAT(render, testRender))
-                    fputs("Failed to write test render file.\n", stderr);
+                if (!savePng(render, testRender))
+                    ABORT("Failed to write test render file.");
             }
             break;
         default:;
